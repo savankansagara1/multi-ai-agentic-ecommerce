@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multi-AI Agentic E-Commerce System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    .chat-bubble-ai { background-color: #f1f5f9; border-radius: 1rem 1rem 1rem 0.25rem; }
+    .chat-bubble-user { background-color: #3b82f6; color: white; border-radius: 1rem 1rem 0.25rem 1rem; }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: #f8fafc; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800 antialiased flex flex-col h-screen overflow-hidden">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between shadow-sm flex-shrink-0">
+    <div class="flex items-center space-x-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md">
+        <i class="fa-solid fa-robot text-lg"></i>
+      </div>
+      <div>
+        <h1 class="font-bold text-lg text-slate-900 leading-tight">Multi-AI Agentic E-Commerce System</h1>
+        <p class="text-xs text-slate-500">Autonomous LangGraph Architecture &bull; Local LLM &bull; FastAPI</p>
+      </div>
+    </div>
+    <div class="flex items-center space-x-3">
+      <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span> gpt-oss:120b-cloud
+      </span>
+      <a href="/docs" target="_blank" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg transition-colors flex items-center space-x-1.5 border border-slate-200">
+        <i class="fa-solid fa-code"></i>
+        <span>API Docs</span>
+      </a>
+      <button onclick="refreshAll()" class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors" title="Refresh State">
+        <i class="fa-solid fa-rotate"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <div class="flex-1 flex overflow-hidden">
+    
+    <!-- Left Column: Agent Chat Console (60%) -->
+    <div class="w-3/5 flex flex-col bg-white border-r border-slate-200">
+      
+      <!-- Quick Prompts Bar -->
+      <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center space-x-2 overflow-x-auto scrollbar-thin text-xs whitespace-nowrap">
+        <span class="text-slate-400 font-semibold uppercase tracking-wider text-[10px] pl-1">Prompts:</span>
+        <button onclick="sendQuickPrompt('Show me laptops under ₹80,000')" class="px-2.5 py-1 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-slate-200 rounded-full transition-all text-slate-600">
+          💻 Laptops under ₹80k
+        </button>
+        <button onclick="sendQuickPrompt('Add ThinkBook Pro 8GB to my cart')" class="px-2.5 py-1 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-slate-200 rounded-full transition-all text-slate-600">
+          🛒 Add ThinkBook to Cart
+        </button>
+        <button onclick="sendQuickPrompt('Show me my cart')" class="px-2.5 py-1 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-slate-200 rounded-full transition-all text-slate-600">
+          🛍️ View Cart
+        </button>
+        <button onclick="sendQuickPrompt('Place order')" class="px-2.5 py-1 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-slate-200 rounded-full transition-all text-slate-600">
+          ⚡ Checkout
+        </button>
+        <button onclick="sendQuickPrompt('Show my previous orders')" class="px-2.5 py-1 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-slate-200 rounded-full transition-all text-slate-600">
+          📦 View Orders
+        </button>
+        <button onclick="sendQuickPrompt('What is your return policy and refund timeline?')" class="px-2.5 py-1 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-slate-200 rounded-full transition-all text-slate-600">
+          ℹ️ Return Policy
+        </button>
+        <button onclick="sendQuickPrompt('Show my cart and what is your return policy?')" class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-full font-medium transition-all">
+          🔀 Multi-Intent Demo
+        </button>
+      </div>
+
+      <!-- Messages Stream -->
+      <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
+        <!-- Initial Welcome Message -->
+        <div class="flex items-start space-x-3">
+          <div class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center flex-shrink-0 text-sm">
+            <i class="fa-solid fa-robot"></i>
+          </div>
+          <div class="chat-bubble-ai p-3.5 max-w-[85%] text-sm shadow-sm border border-slate-100 text-slate-800">
+            <p class="font-semibold text-blue-900 mb-1">Hello! I am your AI Shopping & Customer Support Assistant.</p>
+            <p>I can help you search products, manage your cart, place orders safely, track shipments, resolve customer support inquiries with grounded store policies, and escalate issues when needed.</p>
+            <p class="mt-2 text-xs text-slate-500">Try one of the prompt pills above or type your question below!</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Confirmation Banner (Appears dynamically if awaiting confirmation) -->
+      <div id="confirmationBanner" class="hidden px-4 py-2.5 bg-amber-50 border-t border-amber-200 flex items-center justify-between text-xs text-amber-900">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-triangle-exclamation text-amber-600"></i>
+          <span id="confirmationText" class="font-medium">Action requires your confirmation to proceed.</span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button onclick="sendConfirmation('yes')" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md font-semibold transition-colors shadow-sm">
+            <i class="fa-solid fa-check mr-1"></i> Yes, Proceed
+          </button>
+          <button onclick="sendConfirmation('no')" class="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md font-semibold transition-colors shadow-sm">
+            <i class="fa-solid fa-xmark mr-1"></i> No, Cancel
+          </button>
+        </div>
+      </div>
+
+      <!-- Chat Input Form -->
+      <div class="p-3 bg-white border-t border-slate-200">
+        <form id="chatForm" onsubmit="handleChatSubmit(event); return false;" action="javascript:void(0);" class="flex items-center space-x-2">
+          <input 
+            type="text" 
+            id="chatInput" 
+            placeholder="Ask about products, orders, returns, or ask me to add items to cart..."
+            class="flex-1 px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl focus:outline-none text-sm transition-all"
+            autocomplete="off"
+          />
+          <button 
+            type="submit" 
+            id="sendBtn"
+            class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center transition-all shadow-sm disabled:opacity-50"
+          >
+            <i class="fa-solid fa-paper-plane mr-1.5"></i>
+            <span>Send</span>
+          </button>
+        </form>
+      </div>
+
+    </div>
+
+    <!-- Right Column: Interactive State Viewer & Actions (40%) -->
+    <div class="w-2/5 flex flex-col bg-slate-50">
+      
+      <!-- Tabs Navigation -->
+      <div class="flex border-b border-slate-200 bg-white px-2 pt-2 space-x-1">
+        <button onclick="switchTab('cart')" id="tabBtn-cart" class="tab-btn px-3 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-blue-600 text-blue-600 bg-slate-50 flex items-center space-x-1.5">
+          <i class="fa-solid fa-cart-shopping"></i>
+          <span>Cart</span>
+          <span id="cartBadge" class="ml-1 px-1.5 py-0.2 bg-blue-100 text-blue-700 rounded-full text-[10px]">0</span>
+        </button>
+        <button onclick="switchTab('orders')" id="tabBtn-orders" class="tab-btn px-3 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-1.5">
+          <i class="fa-solid fa-box"></i>
+          <span>Orders</span>
+        </button>
+        <button onclick="switchTab('catalog')" id="tabBtn-catalog" class="tab-btn px-3 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-1.5">
+          <i class="fa-solid fa-laptop"></i>
+          <span>Catalog</span>
+        </button>
+        <button onclick="switchTab('support')" id="tabBtn-support" class="tab-btn px-3 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-1.5">
+          <i class="fa-solid fa-circle-question"></i>
+          <span>Help & RAG</span>
+        </button>
+      </div>
+
+      <!-- Tab 1: Cart -->
+      <div id="tabContent-cart" class="tab-pane flex-1 overflow-y-auto p-4 flex flex-col scrollbar-thin">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-bold text-slate-800 text-sm">Shopping Cart (User #1)</h2>
+          <button onclick="clearCart()" class="text-xs text-rose-600 hover:text-rose-800 font-medium">Clear Cart</button>
+        </div>
+        <div id="cartItemsList" class="flex-1 space-y-2.5">
+          <!-- Dynamic Cart Items -->
+          <div class="text-center py-10 text-slate-400 text-xs">Loading cart...</div>
+        </div>
+        <div class="border-t border-slate-200 pt-3 mt-3 bg-white p-3.5 rounded-xl shadow-sm">
+          <div class="flex justify-between text-xs text-slate-500 mb-1">
+            <span>Subtotal:</span>
+            <span id="cartSubtotal">₹0.00</span>
+          </div>
+          <div class="flex justify-between text-xs text-slate-500 mb-2">
+            <span>Estimated GST & Shipping:</span>
+            <span class="text-emerald-600 font-medium">Free Shipping</span>
+          </div>
+          <div class="flex justify-between text-sm font-bold text-slate-900 border-t border-slate-100 pt-2 mb-3">
+            <span>Total:</span>
+            <span id="cartTotal">₹0.00</span>
+          </div>
+          <button onclick="triggerCheckout()" id="checkoutBtn" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center transition-all shadow-sm">
+            <i class="fa-solid fa-lock mr-1.5"></i> Place Order / Checkout
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab 2: Orders & Shipments -->
+      <div id="tabContent-orders" class="tab-pane hidden flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
+        <div class="flex items-center justify-between mb-1">
+          <h2 class="font-bold text-slate-800 text-sm">Recent Orders & Tracking</h2>
+          <button onclick="loadOrders()" class="text-xs text-blue-600 hover:underline">Refresh</button>
+        </div>
+        <div id="ordersList" class="space-y-3">
+          <!-- Dynamic Orders -->
+          <div class="text-center py-10 text-slate-400 text-xs">Loading orders...</div>
+        </div>
+      </div>
+
+      <!-- Tab 3: Catalog -->
+      <div id="tabContent-catalog" class="tab-pane hidden flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
+        <div class="flex items-center justify-between mb-1">
+          <h2 class="font-bold text-slate-800 text-sm">Product Catalog</h2>
+          <span class="text-xs text-slate-400">PostgreSQL Grounded</span>
+        </div>
+        <div id="catalogList" class="space-y-3">
+          <!-- Dynamic Products -->
+          <div class="text-center py-10 text-slate-400 text-xs">Loading catalog...</div>
+        </div>
+      </div>
+
+      <!-- Tab 4: Support & RAG Knowledge Base -->
+      <div id="tabContent-support" class="tab-pane hidden flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
+        <div class="flex items-center justify-between mb-1">
+          <h2 class="font-bold text-slate-800 text-sm">Store Policies & Support RAG</h2>
+          <button onclick="triggerEscalateModal()" class="text-xs px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-md font-medium">
+            <i class="fa-solid fa-headset mr-1"></i> Human Escalation
+          </button>
+        </div>
+        <div class="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 leading-relaxed">
+          <p class="font-semibold mb-1"><i class="fa-solid fa-shield-halved mr-1"></i> RAG Grounding Active</p>
+          <p>Support queries are retrieved directly from <code class="bg-blue-100 px-1 py-0.5 rounded">ProductDocument</code> and <code class="bg-blue-100 px-1 py-0.5 rounded">DocumentChunk</code> tables in PostgreSQL.</p>
+        </div>
+        <div id="faqsList" class="space-y-2">
+          <!-- Dynamic FAQs -->
+          <div class="text-center py-10 text-slate-400 text-xs">Loading knowledge base chunks...</div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    let currentThreadId = "session_" + Math.random().toString(36).substring(2, 9);
+    const userId = 1;
+
+    // Switch right panel tabs
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('border-blue-600', 'text-blue-600', 'bg-slate-50');
+        btn.classList.add('border-transparent', 'text-slate-500');
+      });
+      document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.add('hidden'));
+
+      document.getElementById('tabBtn-' + tab).classList.add('border-blue-600', 'text-blue-600', 'bg-slate-50');
+      document.getElementById('tabBtn-' + tab).classList.remove('border-transparent', 'text-slate-500');
+      document.getElementById('tabContent-' + tab).classList.remove('hidden');
+
+      if (tab === 'cart') loadCart();
+      if (tab === 'orders') loadOrders();
+      if (tab === 'catalog') loadCatalog();
+      if (tab === 'support') loadFaqs();
+    }
+
+    // Refresh all states
+    function refreshAll() {
+      loadCart();
+      loadOrders();
+      loadCatalog();
+      loadFaqs();
+    }
+
+    // Append Chat Bubble
+    function appendMessage(role, content, intent = null) {
+      const container = document.getElementById('chatMessages');
+      const msgDiv = document.createElement('div');
+      msgDiv.className = role === 'user' ? 'flex items-start justify-end space-x-3' : 'flex items-start space-x-3';
+
+      let inner = '';
+      if (role === 'user') {
+        inner = `
+          <div class="chat-bubble-user p-3.5 max-w-[85%] text-sm shadow-sm">
+            <p>${escapeHtml(content)}</p>
+          </div>
+          <div class="w-8 h-8 rounded-full bg-slate-700 text-white flex items-center justify-center flex-shrink-0 text-sm">
+            <i class="fa-solid fa-user"></i>
+          </div>
+        `;
+      } else {
+        const parsed = marked.parse(content);
+        const intentBadge = intent ? `<span class="inline-block mb-1.5 px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-semibold rounded-full uppercase tracking-wider">${intent}</span>` : '';
+        inner = `
+          <div class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center flex-shrink-0 text-sm">
+            <i class="fa-solid fa-robot"></i>
+          </div>
+          <div class="chat-bubble-ai p-3.5 max-w-[85%] text-sm shadow-sm border border-slate-100 text-slate-800">
+            ${intentBadge}
+            <div class="prose prose-sm max-w-none">${parsed}</div>
+          </div>
+        `;
+      }
+      msgDiv.innerHTML = inner;
+      container.appendChild(msgDiv);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Send Message directly without triggering synthetic DOM events
+    async function sendMessage(text) {
+      if (!text || !text.trim()) return;
+      text = text.trim();
+
+      appendMessage('user', text);
+      const input = document.getElementById('chatInput');
+      if (input) input.value = '';
+
+      const sendBtn = document.getElementById('sendBtn');
+      sendBtn.disabled = true;
+      sendBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Thinking...';
+
+      try {
+        const resp = await fetch('/api/chat/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: text,
+            user_id: userId,
+            thread_id: currentThreadId
+          })
+        });
+
+        const data = await resp.json();
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = '<i class="fa-solid fa-paper-plane mr-1.5"></i> Send';
+
+        if (resp.ok) {
+          appendMessage('ai', data.response, data.intent);
+
+          if (data.awaiting_confirmation) {
+            document.getElementById('confirmationBanner').classList.remove('hidden');
+            document.getElementById('confirmationText').textContent = 'Safety Confirmation: Reply "yes" to proceed or "no" to cancel.';
+          } else {
+            document.getElementById('confirmationBanner').classList.add('hidden');
+          }
+
+          // Always refresh state after assistant interaction
+          loadCart();
+          loadOrders();
+        } else {
+          appendMessage('ai', 'Error: ' + (data.detail || 'Could not process request'));
+        }
+      } catch (err) {
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = '<i class="fa-solid fa-paper-plane mr-1.5"></i> Send';
+        console.error('Fetch error:', err);
+        appendMessage('ai', 'Network error contacting agent service. Please ensure the server is running on port 8000.');
+      }
+    }
+
+    // Send Quick Prompt
+    function sendQuickPrompt(prompt) {
+      sendMessage(prompt);
+    }
+
+    // Handle Confirmation Click
+    function sendConfirmation(choice) {
+      document.getElementById('confirmationBanner').classList.add('hidden');
+      sendMessage(choice);
+    }
+
+    // Chat Submission Form Handler
+    function handleChatSubmit(e) {
+      if (e) e.preventDefault();
+      const input = document.getElementById('chatInput');
+      const text = input ? input.value : '';
+      sendMessage(text);
+      return false;
+    }
+
+    // Load Cart
+    async function loadCart() {
+      try {
+        const res = await fetch(`/api/cart/?user_id=${userId}`);
+        const cart = await res.json();
+        const list = document.getElementById('cartItemsList');
+        document.getElementById('cartBadge').textContent = cart.item_count || 0;
+        document.getElementById('cartSubtotal').textContent = `₹${(cart.total || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+        document.getElementById('cartTotal').textContent = `₹${(cart.total || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+
+        if (!cart.items || cart.items.length === 0) {
+          list.innerHTML = `
+            <div class="text-center py-8 text-slate-400">
+              <i class="fa-solid fa-cart-shopping text-3xl mb-2"></i>
+              <p class="text-xs">Your cart is empty.</p>
+            </div>
+          `;
+          return;
+        }
+
+        list.innerHTML = cart.items.map(item => `
+          <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="font-semibold text-xs text-slate-800">${escapeHtml(item.product_name)}</p>
+              <p class="text-[11px] text-slate-500">${escapeHtml(item.variant_name)} &bull; ₹${item.unit_price.toLocaleString('en-IN')}</p>
+            </div>
+            <div class="flex items-center space-x-2">
+              <div class="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-slate-50 text-xs">
+                <button onclick="updateCartQuantity(${item.product_variant_id}, ${item.quantity - 1})" class="px-2 py-1 hover:bg-slate-200">-</button>
+                <span class="px-2 font-medium">${item.quantity}</span>
+                <button onclick="updateCartQuantity(${item.product_variant_id}, ${item.quantity + 1})" class="px-2 py-1 hover:bg-slate-200">+</button>
+              </div>
+              <button onclick="removeCartItem(${item.product_variant_id})" class="text-slate-400 hover:text-rose-600 p-1" title="Remove">
+                <i class="fa-solid fa-trash-can text-xs"></i>
+              </button>
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        console.error('Failed to load cart', e);
+      }
+    }
+
+    async function updateCartQuantity(variantId, newQty) {
+      await fetch(`/api/cart/items/${variantId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variant_id: variantId, quantity: newQty, user_id: userId })
+      });
+      loadCart();
+    }
+
+    async function removeCartItem(variantId) {
+      await fetch(`/api/cart/items/${variantId}?user_id=${userId}`, { method: 'DELETE' });
+      loadCart();
+    }
+
+    async function clearCart() {
+      await fetch(`/api/cart/?user_id=${userId}`, { method: 'DELETE' });
+      loadCart();
+    }
+
+    function triggerCheckout() {
+      sendQuickPrompt('Place order for my cart');
+    }
+
+    // Load Orders
+    async function loadOrders() {
+      try {
+        const res = await fetch(`/api/orders/?user_id=${userId}`);
+        const orders = await res.json();
+        const list = document.getElementById('ordersList');
+
+        if (!orders || orders.length === 0) {
+          list.innerHTML = `
+            <div class="text-center py-8 text-slate-400">
+              <i class="fa-solid fa-box-open text-3xl mb-2"></i>
+              <p class="text-xs">No orders found.</p>
+            </div>
+          `;
+          return;
+        }
+
+        list.innerHTML = orders.map(ord => {
+          let statusBadge = 'bg-slate-100 text-slate-700';
+          if (ord.status === 'delivered') statusBadge = 'bg-emerald-100 text-emerald-800';
+          if (ord.status === 'processing') statusBadge = 'bg-amber-100 text-amber-800';
+          if (ord.status === 'placed') statusBadge = 'bg-blue-100 text-blue-800';
+          if (ord.status === 'cancelled') statusBadge = 'bg-rose-100 text-rose-800';
+
+          return `
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-xs text-slate-900">${ord.order_number}</span>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${statusBadge}">${ord.status}</span>
+              </div>
+              <p class="text-xs text-slate-600 line-clamp-1">${escapeHtml(ord.items_summary)}</p>
+              <div class="flex items-center justify-between text-xs pt-1 border-t border-slate-100 text-slate-500">
+                <span>Total: <strong class="text-slate-800">₹${ord.total_amount.toLocaleString('en-IN')}</strong></span>
+                <div class="space-x-1.5">
+                  <button onclick="sendQuickPrompt('Track order ${ord.order_number}')" class="text-blue-600 hover:underline">Track</button>
+                  ${ord.status === 'delivered' ? `<button onclick="sendQuickPrompt('Return order ${ord.order_number}')" class="text-amber-600 hover:underline">Return</button>` : ''}
+                  ${['placed', 'processing'].includes(ord.status) ? `<button onclick="sendQuickPrompt('Cancel order ${ord.order_number}')" class="text-rose-600 hover:underline">Cancel</button>` : ''}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error('Failed to load orders', e);
+      }
+    }
+
+    // Load Catalog
+    async function loadCatalog() {
+      try {
+        const res = await fetch('/api/products/');
+        const products = await res.json();
+        const list = document.getElementById('catalogList');
+
+        if (!products || products.length === 0) {
+          list.innerHTML = `<p class="text-xs text-slate-400 text-center py-6">No products found.</p>`;
+          return;
+        }
+
+        list.innerHTML = products.map(p => `
+          <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-xs text-slate-900">${escapeHtml(p.name)}</span>
+              <span class="text-xs text-slate-400">${escapeHtml(p.brand || '')} &bull; ★ ${p.rating || '4.5'}</span>
+            </div>
+            <p class="text-xs text-slate-500 line-clamp-2">${escapeHtml(p.description || '')}</p>
+            <div class="space-y-1.5 pt-1">
+              ${(p.variants || []).map(v => `
+                <div class="flex items-center justify-between bg-slate-50 p-2 rounded-lg text-xs">
+                  <span>${escapeHtml(v.name)} &bull; <strong class="text-slate-900">₹${v.price.toLocaleString('en-IN')}</strong></span>
+                  <button onclick="sendQuickPrompt('Add ${p.name} ${v.name} to cart')" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px] font-semibold transition-colors">
+                    Add
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        console.error('Failed to load catalog', e);
+      }
+    }
+
+    // Load FAQs
+    async function loadFaqs() {
+      try {
+        const res = await fetch('/api/support/faqs');
+        const faqs = await res.json();
+        const list = document.getElementById('faqsList');
+
+        if (!faqs || faqs.length === 0) {
+          list.innerHTML = `<p class="text-xs text-slate-400 text-center py-6">No FAQs found.</p>`;
+          return;
+        }
+
+        list.innerHTML = faqs.map(f => `
+          <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm text-xs space-y-1">
+            <span class="font-bold text-slate-800">${escapeHtml(f.title)}</span>
+            <p class="text-slate-600 leading-relaxed">${escapeHtml(f.content)}</p>
+          </div>
+        `).join('');
+      } catch (e) {
+        console.error('Failed to load FAQs', e);
+      }
+    }
+
+    function triggerEscalateModal() {
+      const issue = prompt("Please briefly describe the issue you want to escalate to our specialist team:");
+      if (!issue) return;
+      sendQuickPrompt(`I want to escalate this issue to a human support agent: ${issue}`);
+    }
+
+    // Initial load
+    document.addEventListener('DOMContentLoaded', () => {
+      loadCart();
+      loadOrders();
+      loadCatalog();
+      loadFaqs();
+    });
+  </script>
+</body>
+</html>
