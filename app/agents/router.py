@@ -47,8 +47,10 @@ def detect_intents(message: str) -> list[str]:
     # Check for product discovery keywords
     product_patterns = [
         r"\b(?:specs|specifications|features|compare|processor|display|best\s+camera|laptop\s+under|phone\s+under)\b",
+        r"\b(?:show|list|browse|find|search|give)\b.*\b(?:all\s+)?products?\b",
+        r"\bproduct\s+list\b|\blist\s+of\s+products?\b|\bcatalog\b",
     ]
-    if any(re.search(p, m) for p in product_patterns) and "shopping" not in intents:
+    if any(re.search(p, m) for p in product_patterns):
         intents.append("product")
 
     # If compound intent detected (2 or more distinct domains)

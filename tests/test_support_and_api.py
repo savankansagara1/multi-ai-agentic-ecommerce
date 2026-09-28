@@ -13,12 +13,12 @@ from app.services.support_service import SupportService
 from app.agents.support_graph import build_support_graph
 from app.agents.shopping_graph import build_shopping_graph
 from app.agents.order_graph import build_order_graph
-from app.agents.day2_conditional_graph import build_main_graph
+from app.agents.orchestrator import build_main_graph
 from app.agents.router import detect_intents
 from app.main import app
 
 
-class TestDay4Day5(unittest.TestCase):
+class TestSupportAndAPI(unittest.TestCase):
 
     def setUp(self):
         self.db = SessionLocal()

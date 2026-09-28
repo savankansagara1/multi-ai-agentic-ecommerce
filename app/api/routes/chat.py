@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from langgraph.checkpoint.memory import MemorySaver
 
 from app.db.database import get_db
-from app.agents.day2_conditional_graph import build_main_graph
+from app.agents.orchestrator import build_main_graph
 
 router = APIRouter(
     prefix="/chat",

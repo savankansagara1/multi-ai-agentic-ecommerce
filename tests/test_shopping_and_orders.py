@@ -4,10 +4,10 @@ from app.services.cart_service import CartService
 from app.services.order_service import OrderService
 from app.agents.shopping_graph import build_shopping_graph
 from app.agents.order_graph import build_order_graph
-from app.agents.day2_conditional_graph import build_main_graph
+from app.agents.orchestrator import build_main_graph
 
 
-class TestDay3(unittest.TestCase):
+class TestShoppingAndOrders(unittest.TestCase):
 
     def setUp(self):
         self.db = SessionLocal()
