@@ -6,6 +6,8 @@ class AgentState(TypedDict, total=False):
     message: str
     intent: str
     intents: list[str] | None
+    redirect_intent: str | None
+    cart_items: list[dict[str, Any]] | None
 
     messages: list[Any]
     response: Any

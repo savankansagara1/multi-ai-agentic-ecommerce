@@ -396,7 +396,11 @@ def build_shopping_graph(db):
 
         # H. View Cart intent (executes tool)
         view_keywords = ["view cart", "show my cart", "show me my cart", "what's in my cart", "what is in my cart", "cart contents", "see my cart", "check my cart"]
-        is_view_intent = any(kw in message for kw in view_keywords) or message in ["cart", "my cart"]
+        is_view_intent = (
+            any(kw in message for kw in view_keywords)
+            or message in ["cart", "my cart"]
+            or ("cart" in message and re.search(r"\b(status|current|contents|items|what is|what's|show|view|check|see)\b", message))
+        )
 
         if is_view_intent:
             return {
@@ -432,6 +436,7 @@ def build_shopping_graph(db):
                 if not cart["items"]:
                     return {
                         "response": "Your cart is currently empty.",
+                        "cart_items": [],
                         "action_to_execute": None,
                     }
 
@@ -445,6 +450,7 @@ def build_shopping_graph(db):
 
                 return {
                     "response": "\n".join(lines),
+                    "cart_items": cart["items"],
                     "action_to_execute": None,
                 }
 

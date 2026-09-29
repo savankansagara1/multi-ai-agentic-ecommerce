@@ -1,4 +1,5 @@
 import re
+from difflib import get_close_matches
 from decimal import Decimal
 
 from sqlalchemy import select, or_
@@ -8,6 +9,76 @@ from app.db.models.product import Product, ProductVariant
 
 
 class ProductService:
+    _query_word_corrections = {
+        "product", "products", "item", "items", "catalog", "laptop", "laptops",
+        "notebook", "notebooks", "phone", "phones", "smartphone", "smartphones",
+        "mobile", "mobiles", "tablet", "tablets", "camera", "cameras",
+        "headphone", "headphones", "earbuds",
+    }
+    _query_stop_words = {
+        "show", "find", "search", "give", "me", "some", "any", "please",
+        "product", "products", "item", "items", "available", "best", "good",
+        "for", "with", "and", "the", "a", "an", "under", "below", "less",
+        "than", "up", "to", "upto", "maximum", "max", "price", "budget",
+        "rupees", "rs", "inr", "laptop", "laptops", "notebook", "notebooks",
+        "phone", "phones", "smartphone", "smartphones", "mobile", "mobiles",
+        "tablet", "tablets", "camera", "cameras", "headphone", "headphones",
+        "earbuds", "how", "many", "unit", "units", "are", "is", "of", "there",
+        "in", "stock", "inventory", "quantity", "count", "left", "remain",
+        "remaining", "tell", "does", "do", "have", "has", "currently", "right",
+        "now", "i", "want", "wanna", "buy", "purchase", "looking", "look",
+        "options", "option", "what", "which", "my", "your", "recommend",
+        "recommendations", "need", "like", "can", "could", "would", "suggest",
+        "compare", "comparison", "versus", "vs",
+        "you", "we", "our", "it", "this", "that", "get", "list", "of",
+    }
+
+    @classmethod
+    def _normalized_query_tokens(cls, query: str) -> list[str]:
+        tokens = re.findall(r"[a-zA-Z0-9]+", query.lower())
+        normalized = []
+        for token in tokens:
+            if token in cls._query_word_corrections:
+                normalized.append(token)
+                continue
+            correction = get_close_matches(
+                token,
+                cls._query_word_corrections,
+                n=1,
+                cutoff=0.78,
+            )
+            normalized.append(correction[0] if correction else token)
+        return normalized
+
+    @classmethod
+    def is_catalog_browse_request(cls, query: str) -> bool:
+        tokens = cls._normalized_query_tokens(query)
+        product_words = {"product", "products", "item", "items", "catalog"}
+        if not product_words.intersection(tokens):
+            return False
+        requested_types = {
+            "laptop", "laptops", "notebook", "notebooks", "phone", "phones",
+            "smartphone", "smartphones", "mobile", "mobiles", "tablet", "tablets",
+            "camera", "cameras", "headphone", "headphones", "earbuds",
+        }
+        has_type_filter = bool(requested_types.intersection(tokens))
+        has_price_filter = bool(re.search(
+            r"\b(?:under|below|less than|up to|upto|max(?:imum)?)\s*"
+            r"(?:₹|rs\.?\s*)?[\d,]+(?:\.\d+)?\s*(?:k|thousand)?\b",
+            query,
+            re.IGNORECASE,
+        ))
+        has_availability_filter = bool(re.search(
+            r"\b(?:in stock|available|availability|stock|inventory)\b",
+            query,
+            re.IGNORECASE,
+        ))
+        meaningful_terms = [
+            token for token in tokens
+            if token not in cls._query_stop_words and not token.isdigit()
+        ]
+        return not (has_type_filter or has_price_filter or has_availability_filter or meaningful_terms)
+
     @staticmethod
     def get_product(db: Session, product_id: int) -> Product | None:
         statement = (
@@ -61,6 +132,7 @@ class ProductService:
         db: Session,
         query: str,
         limit: int = 10,
+        include_out_of_stock: bool = False,
     ) -> list[dict]:
         """Return only matching, active, in-stock catalog variants.
 
@@ -84,16 +156,16 @@ class ProductService:
                 amount *= 1000
             max_price = amount
 
-        ignored = {
-            "show", "find", "search", "give", "me", "some", "any", "please",
-            "product", "products", "available", "best", "good", "for", "with",
-            "and", "the", "a", "an", "under", "below", "less", "than", "up",
-            "to", "upto", "maximum", "max", "price", "budget", "rupees", "rs",
-            "inr", "laptop", "laptops", "notebook", "notebooks", "phone", "phones",
-            "smartphone", "smartphones", "mobile", "mobiles", "tablet", "tablets",
-            "camera", "cameras", "headphone", "headphones", "earbuds", "with",
-        }
-        tokens = [term.lower() for term in re.findall(r"[a-zA-Z0-9]+", query)]
+        tokens = ProductService._normalized_query_tokens(query)
+        budget_number = (
+            re.sub(r"\D", "", budget_match.group(1))
+            if budget_match else None
+        )
+        terms = [
+            term for term in tokens
+            if term not in ProductService._query_stop_words
+            and (not term.isdigit() or term != budget_number)
+        ]
         requested_types = {
             "laptop": {"laptop", "notebook"},
             "notebook": {"laptop", "notebook"},
@@ -109,37 +181,53 @@ class ProductService:
         for token in tokens:
             singular = token[:-1] if token.endswith("s") else token
             type_matches.update(requested_types.get(singular, set()))
-        terms = [
-            term for term in tokens
-            if term not in ignored and not term.isdigit()
-        ]
+        # Keep the normalized identifying terms computed above. A duplicate
+        # filter here previously referenced an undefined `ignored` variable.
 
         # Load actual catalog rows with their variant data; never synthesize products.
         statement = (
             select(Product)
             .join(ProductVariant, ProductVariant.product_id == Product.id)
             .options(selectinload(Product.variants))
-            .where(ProductVariant.is_active.is_(True), ProductVariant.stock_quantity > 0)
+            .where(ProductVariant.is_active.is_(True))
             .distinct()
         )
         products = db.scalars(statement).unique().all()
         results = []
         for product in products:
-            description = " ".join([
+            product_text = " ".join([
                 product.name or "", product.brand or "", product.description or "",
                 str(product.specifications or {}),
             ]).lower()
-            matching_terms = [term for term in terms if term in description]
             # Respect product kinds such as laptop/phone as real catalog constraints.
-            if type_matches and not any(kind in description for kind in type_matches):
-                continue
-            # A query with specific identifying words must match all of them.
-            if terms and len(matching_terms) != len(terms):
+            if type_matches and not any(kind in product_text for kind in type_matches):
                 continue
 
             for variant in product.variants:
-                if not variant.is_active or variant.stock_quantity <= 0:
+                if not variant.is_active:
                     continue
+                if not include_out_of_stock and variant.stock_quantity <= 0:
+                    continue
+                variant_text = " ".join([
+                    product_text, variant.name or "", variant.sku or "",
+                    str(variant.specifications or {}),
+                ]).lower()
+                # Specific identifying words must match the product or its variant.
+                if terms:
+                    searchable_tokens = set(re.findall(r"[a-z0-9]+", variant_text))
+                    # Match misspelled model names (e.g. "Galxy") against words
+                    # that actually occur in catalog records, without relaxing
+                    # every term into a broad catalog search.
+                    unmatched = [
+                        term for term in terms
+                        if term not in variant_text
+                        and not any(
+                            get_close_matches(term, [word], n=1, cutoff=0.78)
+                            for word in searchable_tokens
+                        )
+                    ]
+                    if unmatched:
+                        continue
                 if max_price is not None and Decimal(variant.price) > max_price:
                     continue
                 results.append({

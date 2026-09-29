@@ -1,13 +1,10 @@
 import re
-from enum import Enum
 from dotenv import load_dotenv
-
 from langchain_ollama import ChatOllama
 
 from app.schemas.agent import Intent, IntentClassification
 
 load_dotenv()
-
 
 llm = ChatOllama(
     model="gpt-oss:120b-cloud",
@@ -15,150 +12,108 @@ llm = ChatOllama(
 )
 
 
-def detect_intents(message: str) -> list[str]:
-    """Detect if a user message contains multiple distinct intents (compound requests)."""
-    m = message.lower()
-    intents = []
+def _explicit_intents(message: str) -> list[str]:
+    """Identify clear domain signals without asking the LLM to guess."""
+    text = re.sub(r"\s+", " ", message.lower()).strip()
+    intents: list[str] = []
 
-    # Check for shopping keywords
-    shopping_patterns = [
-        r"\b(?:view\s+cart|show\s+cart|my\s+cart|see\s+cart|in\s+my\s+cart|checkout|place\s+order|buy\s+now|clear\s+cart)\b",
-        r"\b(?:add|remove|delete|update)\b.*\b(?:cart)\b",
-    ]
-    if any(re.search(p, m) for p in shopping_patterns):
-        intents.append("shopping")
+    # General capability and internal-data questions belong to the safe second-level handler.
+    if re.search(
+        r"\b(database|db|raw records|all records|credentials?|passwords?|secrets?|api keys?|"
+        r"connection strings?|environment variables?|system prompts?|internal prompts?|developer prompts?)\b",
+        text,
+    ) or re.search(r"\b(?:select|insert|update|delete)\b.+\b(?:from|into|table)\b", text):
+        return [Intent.UNKNOWN.value]
+    if re.search(
+        r"\b(?:what can (?:you|this assistant) (?:help|do)|what can i ask|what do you do|"
+        r"available (?:features|functions|capabilities)|how does (?:this )?(?:shopping )?assistant work|"
+        r"how do i use (?:this )?(?:shopping )?assistant)\b",
+        text,
+    ):
+        return [Intent.UNKNOWN.value]
 
-    # Check for support / policy keywords
-    support_patterns = [
-        r"\b(?:return\s+policy|refund\s+policy|cancellation\s+policy|shipping\s+policy|warranty|guarantee|troubleshoot|human\s+agent|speak\s+with|talk\s+to\s+human|customer\s+care|support\s+hours|help\s+desk|policy)\b",
-    ]
-    if any(re.search(p, m) for p in support_patterns):
-        intents.append("support")
+    shopping_patterns = (
+        r"\b(?:view|show|see|check|status|current|clear|empty)\b.{0,35}\bcart\b",
+        r"\b(?:add|put|remove|delete|update|change)\b.{0,80}\bcart\b",
+        r"\b(?:checkout|check out|place (?:an? )?order|complete (?:my )?purchase|buy now|pay now)\b",
+    )
+    if any(re.search(pattern, text) for pattern in shopping_patterns):
+        intents.append(Intent.SHOPPING.value)
 
-    # Check for order keywords (specific to existing user orders)
-    order_patterns = [
-        r"\b(?:my\s+orders?|previous\s+orders?|past\s+orders?|order\s+status|track\s+order|where\s+is\s+my\s+order|cancel\s+order|return\s+order)\b",
+    support_patterns = (
+        r"\b(?:return|refund|cancellation|shipping|delivery)\s+policy\b",
+        r"\b(?:warranty|guarantee|troubleshoot(?:ing)?|faq|policy|policies)\b",
+        r"\b(?:how much|how long|what is|what are|tell me).{0,40}\b(?:shipping|delivery)\b.{0,35}\b(?:cost|fee|price|take|long|time)\b",
+        r"\b(?:shipping|delivery)\s+(?:cost|fee|price|time)\b",
+        r"\b(?:payment methods?|ways to pay|how (?:do|can) i pay|payment policy)\b",
+        r"\bhow (?:do i|can i|to) return\b|\breturn (?:a|the|this) (?:product|item)\b",
+        r"\b(?:speak|talk|connect)\s+(?:to|with)\s+(?:a\s+)?(?:human|person|representative|agent)\b",
+        r"\b(?:damaged|broken|defective|wrong item|missing item|complaint|dispute|unresolved)\b",
+    )
+    if any(re.search(pattern, text) for pattern in support_patterns):
+        intents.append(Intent.SUPPORT.value)
+
+    order_patterns = (
+        r"\b(?:my|previous|past|recent)\s+orders?\b",
+        r"\b(?:order\s+(?:status|history|details|number|#)|track\s+(?:my\s+)?(?:order|package|shipment)|where\s+is\s+my\s+(?:order|package)|when\s+will\s+my\s+(?:order|package))\b",
+        r"\b(?:cancel|return|refund)\b.{0,60}\b(?:my\s+)?order\b",
+        r"\b(?:refund|return|cancellation)\s+(?:status|progress|request)\b",
         r"\bORD-[0-9A-Za-z-]+\b",
-    ]
-    if any(re.search(p, m) for p in order_patterns):
-        if not ("support" in intents and not any(re.search(p, m) for p in [r"\bmy\s+order", r"\bord-"])):
-            intents.append("order")
+    )
+    if any(re.search(pattern, text) for pattern in order_patterns):
+        intents.append(Intent.ORDER.value)
 
-    # Check for product discovery keywords
-    product_patterns = [
-        r"\b(?:specs|specifications|features|compare|processor|display|best\s+camera|laptop\s+under|phone\s+under)\b",
-        r"\b(?:show|list|browse|find|search|give)\b.*\b(?:all\s+)?products?\b",
-        r"\bproduct\s+list\b|\blist\s+of\s+products?\b|\bcatalog\b",
-    ]
-    if any(re.search(p, m) for p in product_patterns):
-        intents.append("product")
+    product_nouns = r"\b(?:products?|items?|laptops?|notebooks?|computers?|pcs?|phones?|smartphones?|mobiles?|tablets?|cameras?|headphones?|earbuds?)\b"
+    product_actions = r"\b(?:show|list|find|search|browse|recommend|suggest|compare|comare|buy|purchase|price|cost|features?|specs?|specifications?|options?|available|availability|stock|inventory|how\s+many|under|below|best|which|what|sell|have|offer|carry|helpful|useful|suitable|good\s+for|work\s+for|stud(?:y|ies|ying))\b"
+    if (
+        (re.search(product_nouns, text) and re.search(product_actions, text))
+        or re.search(r"\b(?:product\s+list|list\s+of\s+products?|catalog)\b", text)
+        or re.search(r"\bwhat\s+(?:can|could)\s+i\s+buy\b", text)
+    ):
+        intents.append(Intent.PRODUCT.value)
 
-    # If compound intent detected (2 or more distinct domains)
-    if len(intents) >= 2:
-        return list(dict.fromkeys(intents))
 
-    # Single domain or ambiguous: rely on LLM classification
-    single = classify_intent(message)
-    return [single.intent.value]
+    return list(dict.fromkeys(intents))
+
+
+def detect_intents(message: str) -> list[str]:
+    """Route clear requests directly; use the classifier only when rules are unsure."""
+    explicit = _explicit_intents(message)
+    if explicit:
+        return explicit
+    return [classify_intent(message).intent.value]
 
 
 def classify_intent(message: str) -> IntentClassification:
+    """Classify one request and default safely to unknown if uncertain or unavailable."""
+    explicit = _explicit_intents(message)
+    if len(explicit) == 1:
+        return IntentClassification(intent=Intent(explicit[0]))
+    if len(explicit) > 1:
+        # This schema represents one intent; the graph's detect_intents handles compounds.
+        return IntentClassification(intent=Intent.UNKNOWN)
 
-    prompt = f"""
-You are an intent classifier for an e-commerce AI assistant.
+    prompt = f"""You are the intent classifier for an e-commerce shopping assistant.
+Choose exactly one label: product, shopping, order, support, unknown.
 
-Classify the user's request into EXACTLY ONE of these values:
+product: The user wants to discover, compare, or ask factual questions about products in the store.
+shopping: The user wants to view or change a cart, check out, or make a purchase.
+order: The user asks about their existing order, shipment, cancellation, return, or refund status.
+support: The user asks about company policies, warranty, troubleshooting, a complaint, or human assistance.
+unknown: The request is unrelated to this store, is only small talk, or does not clearly fit one of the four categories.
 
-product
-shopping
-order
-support
-unknown
+Do not guess a store-related intent just because the user asks a question. If the request is ambiguous or unrelated, answer unknown.
+Return only the single lowercase label, with no explanation.
 
-Definitions:
-
-product:
-- product search
-- product information
-- product comparison
-- product recommendations
-- product availability
-- product specifications
-
-shopping:
-- add product to cart
-- remove product from cart
-- update cart quantity
-- view cart
-- checkout
-- purchase-related shopping actions
-
-order:
-- view existing orders
-- order status
-- shipment tracking
-- delivery status
-- cancellation
-- return
-- refund
-- problems with an existing order
-
-support:
-- FAQs
-- company policies
-- complaints
-- troubleshooting
-- general customer support
-
-unknown:
-- requests that do not fit any category above
-
-IMPORTANT:
-Return ONLY ONE WORD from this list:
-
-product
-shopping
-order
-support
-unknown
-
-Do not explain your answer.
-Do not use markdown.
-Do not return JSON.
-Do not return YAML.
-
-User request:
-{message}
+User request: {message}
 """
+    try:
+        response = llm.invoke(prompt)
+        raw = str(response.content).strip().lower().strip("`\"' .\n")
+        if raw in {intent.value for intent in Intent}:
+            return IntentClassification(intent=Intent(raw))
+    except Exception:
+        # A routing failure should result in a clarification prompt, not a forced agent/tool.
+        pass
 
-    response = llm.invoke(prompt)
-
-    raw = response.content.strip().lower()
-
-    print("ROUTER RAW RESPONSE:", repr(raw))
-
-    # -----------------------------------------
-    # Normalize common model responses
-    # -----------------------------------------
-
-    if "product" in raw:
-        intent = Intent.PRODUCT
-
-    elif "shopping" in raw:
-        intent = Intent.SHOPPING
-
-    elif "order" in raw:
-        intent = Intent.ORDER
-
-    elif "support" in raw:
-        intent = Intent.SUPPORT
-
-    elif "unknown" in raw:
-        intent = Intent.UNKNOWN
-
-    else:
-        intent = Intent.UNKNOWN
-
-    return IntentClassification(
-        intent=intent
-    )
+    return IntentClassification(intent=Intent.UNKNOWN)

@@ -6,6 +6,7 @@ from langgraph.graph import StateGraph, START, END
 load_dotenv()
 
 from app.agents.router import detect_intents
+from app.agents.unknown_handler import resolve_unknown_request
 from app.agents.state import AgentState
 from app.agents.product_graph import build_product_graph
 from app.agents.shopping_graph import build_shopping_graph
@@ -125,15 +126,18 @@ def build_main_graph(db, with_checkpointer: bool = True, checkpointer: MemorySav
         return {"response": combined_response, **child_state}
 
     def unknown_node(state: AgentState):
-        return {
-            "response": (
-                "Hello! I am your AI Shopping Assistant. How can I help you today?\n"
-                "- Discover products (e.g. 'Show me ThinkBook laptops')\n"
-                "- Manage your cart (e.g. 'Show my cart', 'Add Galaxy Pro to cart')\n"
-                "- Track and check orders (e.g. 'Show my previous orders', 'Where is my order?')\n"
-                "- Customer Support & Policies (e.g. 'What is your return policy?', 'Talk to human')"
-            )
-        }
+        # `unknown` means the first router could not confidently pick a domain;
+        # this second-level check separates related questions from unrelated ones.
+        result = resolve_unknown_request(state.get("message", ""))
+        if result.get("redirect_intent"):
+            result["intent"] = result["redirect_intent"]
+        return result
+
+    def route_unknown_result(state: AgentState):
+        redirect = state.get("redirect_intent")
+        if redirect in {"product", "shopping", "order", "support"}:
+            return redirect
+        return END
 
     # -------------------------------------------------------------
     # 4. BUILD STATE GRAPH
@@ -168,7 +172,17 @@ def build_main_graph(db, with_checkpointer: bool = True, checkpointer: MemorySav
     builder.add_edge("order", END)
     builder.add_edge("support", END)
     builder.add_edge("multi_intent", END)
-    builder.add_edge("unknown", END)
+    builder.add_conditional_edges(
+        "unknown",
+        route_unknown_result,
+        {
+            "product": "product",
+            "shopping": "shopping",
+            "order": "order",
+            "support": "support",
+            END: END,
+        },
+    )
 
     if checkpointer is not None:
         return builder.compile(checkpointer=checkpointer)
