@@ -277,8 +277,6 @@ Mutating Operations (Add to cart, Update quantity, Remove item, Clear cart, Chec
 - **Zero-Access Sandbox**: The unknown handler operates with an isolated prompt and zero database sessions or tool bindings.
 - **Audited Verification**: Verified via automated test cases in `tests/test_unknown_intent.py` and visualized in `image.png`.
 
-![Safety Interception Demo](image.png)
-
 ---
 
 ## Authentication & Authorization
