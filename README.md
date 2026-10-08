@@ -770,6 +770,6 @@ python -m unittest tests/test_unknown_intent.py tests/test_product_responses.py 
 
 ## Author & Demo
 
-- **Author**: Savan Kansagara ([savan.kansagara@esparkbizmail.com](mailto:savan.kansagara@esparkbizmail.com))
+- **Author**: Savan Kansagara ([important.savan@gmail.com](mailto:important.savan@gmail.com))
 - **Repository**: [savankansagara1/multi-ai-agentic-ecommerce](https://github.com/savankansagara1/multi-ai-agentic-ecommerce)
 - **Demo Video**: See [`Screencast from 30-09-26 11:54:26 AM IST.webm`](Screencast%20from%2030-09-26%2011:54:26%20AM%20IST.webm) for a walkthrough of the multi-agent system, real-time UI, and confirmation flows.
