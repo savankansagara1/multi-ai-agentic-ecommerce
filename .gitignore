@@ -8,3 +8,6 @@ __pycache__/
 .idea/
 .vscode/
 *.log
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/

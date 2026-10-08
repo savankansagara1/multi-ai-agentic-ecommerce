@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from fastapi import FastAPI, Depends
 from fastapi.responses import FileResponse, HTMLResponse
@@ -19,9 +18,10 @@ app = FastAPI(
     version="1.0.0",
 )
 
-STATIC_DIR = Path(__file__).resolve().parent / "static"
-if STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+FRONTEND_DIST = FRONTEND_DIR / "dist"
+if FRONTEND_DIST.exists():
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="assets")
 
 # Mount API Routers under /api
 app.include_router(chat_router, prefix="/api")
@@ -36,8 +36,8 @@ app.include_router(products_router)
 
 @app.get("/", response_class=HTMLResponse)
 def serve_home():
-    """Serve the interactive Single Page Web Application UI."""
-    index_file = STATIC_DIR / "index.html"
+    """Serve the React single page application when it has been built."""
+    index_file = FRONTEND_DIST / "index.html"
     if index_file.exists():
         return FileResponse(str(index_file))
     return HTMLResponse("<h1>Multi-AI Agentic E-Commerce System</h1><p>Visit <a href='/docs'>/docs</a> for API.</p>")

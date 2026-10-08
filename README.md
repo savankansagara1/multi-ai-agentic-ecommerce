@@ -20,7 +20,13 @@ The **Multi-AI Agentic E-Commerce System** solves these challenges by implementi
 
 Every mutating action—adding to cart, updating quantities, clearing carts, placing orders, cancellations, and return requests—is governed by a deterministic **Human-in-the-Loop (HITL) confirmation barrier**. State-changing operations are intercepted, staged as pending actions, preserved across conversation turns via LangGraph checkpointing (`MemorySaver`), and executed only upon explicit user confirmation.
 
-The system is deployed with a high-performance **FastAPI** backend, backed by **PostgreSQL** with declarative **Alembic** migrations and connection pooling, and paired with an interactive Single Page Application (SPA) with real-time cart, order tracking, catalog inspection, and support diagnostics.
+The system is deployed with a high-performance **FastAPI** backend, backed by **PostgreSQL** with declarative **Alembic** migrations and connection pooling, and paired with a responsive **React + Vite** shopping workspace. The frontend brings AI chat, the live cart, order tracking, product discovery, and grounded support articles into one polished interface.
+
+## Frontend Preview
+
+The React interface is built for desktop and mobile, with a conversational shopping assistant alongside account, cart, order, catalog, and help panels.
+
+![Forma React shopping workspace](frontend-preview.png)
 
 ---
 
@@ -44,6 +50,12 @@ The system is deployed with a high-performance **FastAPI** backend, backed by **
 - **Database-Backed RAG Retrieval**: Policy manuals, warranty rules, shipping guidelines, and troubleshooting instructions are stored as structured `DocumentChunk` records in PostgreSQL. Token scoring and phrase matching provide relevant context blocks to the model.
 - **Human Escalation Pipeline**: Escalates unresolved complaints, damaged goods disputes, or explicit human representative requests by issuing unique support tickets (e.g., `TICKET-2026-XXXX`) and persisting audit trails.
 
+### React Shopping Workspace
+- **Conversational Shopping**: Chat with the multi-agent assistant, use suggested prompts, and review intent labels and confirmation requests in context.
+- **Live Account Panels**: View and update cart quantities, follow recent orders, browse and search the product catalog, and expand store policy answers.
+- **Responsive Layout**: A calm, accessible interface adapts from a two-panel desktop workspace to a compact mobile view.
+- **Integrated Development Flow**: Vite proxies `/api` requests to FastAPI during frontend development; production builds are served by FastAPI from `/`.
+
 ### Enterprise Backend & Security
 - **Strict User Tenancy**: Order details, shipment tracking, cart mutations, and returns are strictly scoped to the authenticated `user_id`. Queries targeting foreign order numbers return `404 Not Found` without information leakage.
 - **Comprehensive Audit Logging**: All mutations (`ADD_TO_CART`, `UPDATE_CART_QUANTITY`, `REMOVE_FROM_CART`, `CHECKOUT`, `CANCEL_ORDER`, `REQUEST_RETURN`, `ESCALATE_TO_HUMAN`) write snapshots of old and new states to the `audit_logs` table.
@@ -55,7 +67,7 @@ The system is deployed with a high-performance **FastAPI** backend, backed by **
 
 ```mermaid
 flowchart TD
-    User([User / Web SPA / API Client]) -->|HTTP / JSON| FastAPI[FastAPI Application]
+    User([User / React Frontend / API Client]) -->|HTTP / JSON| FastAPI[FastAPI Application]
     FastAPI --> ChatRoute[/api/chat/]
     FastAPI --> RestRoutes["REST Endpoints (/api/products, /cart, /orders, /support)"]
     
@@ -346,8 +358,8 @@ erDiagram
 | **DB Driver** | [psycopg](https://www.psycopg.org/) | 3.3.6 | Modern PostgreSQL database adapter for Python. |
 | **Database Migrations**| [Alembic](https://alembic.sqlalchemy.org/) | 1.20.0 | Declarative database migration versioning. |
 | **Data Validation** | [Pydantic](https://docs.pydantic.dev/) | 2.13.5 | Strict schema validation for request payloads and structured LLM extractors. |
-| **Frontend UI** | HTML5 / Tailwind CSS / Vanilla JS | - | Interactive Single Page Application with dynamic tabs, chat console, and HITL banners. |
-| **Markdown Parser** | [Marked.js](https://marked.js.org/) | CDN | Client-side markdown rendering for structured agent outputs. |
+| **Frontend UI** | React / Vite | - | Responsive shopping workspace with AI chat, cart, orders, product discovery, and support. |
+| **Markdown Rendering** | [React Markdown](https://github.com/remarkjs/react-markdown) | - | Renders structured assistant responses in the React chat. |
 | **Observability** | [LangSmith](https://smith.langchain.com/) | 0.14.0 | Real-time agent execution tracing, latency monitoring, and tool invocation graphs. |
 | **Testing** | [unittest](https://docs.python.org/3/library/unittest.html) & TestClient | 3.12 | Automated test suite verifying offline unit mocks and end-to-end integration flows. |
 
@@ -403,14 +415,19 @@ multi-ai-agentic-ecommerce/
 │   │   ├── order_service.py          # Scoped order retrieval, cancellations, returns
 │   │   ├── product_service.py        # Tokenizer, fuzzy search, price filters, catalog
 │   │   └── support_service.py        # RAG scoring over document chunks, ticket creation
-│   ├── static/                       # Web interface assets
-│   │   └── index.html                # Single Page Application UI
 │   ├── tools/                        # LangChain tool bindings wrapping services
 │   │   ├── product_tools.py          # search_products tool
 │   │   ├── shopping_tools.py         # Cart management & checkout tools
 │   │   ├── order_tools.py            # Order lookup, tracking, cancellation, return tools
 │   │   └── support_tools.py          # RAG search & human escalation tools
-│   └── main.py                       # FastAPI entry point, routers, health checks, static mount
+│   └── main.py                       # FastAPI entry point, routers, health checks, React build mount
+├── frontend/                         # React + Vite web application
+│   ├── src/App.jsx                   # Chat, cart, orders, catalog, and support workspace
+│   ├── src/styles.css                # Responsive application styling
+│   ├── src/main.jsx                  # React application entry point
+│   ├── index.html                    # Vite HTML entry point
+│   └── vite.config.js                # Development API proxy and build config
+├── frontend-preview.png              # Screenshot of the React shopping workspace
 ├── examples/                         # Developer demos & diagnostic test scripts
 │   ├── agent_demos/                  # Independent runnable agent demos
 │   ├── diagnostics/                  # Smoke tests for routing & graph compilation
@@ -479,7 +496,7 @@ All routes are mounted under `/api` (with `/products` duplicated at root for bac
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `/` | Serves the interactive Single Page Application UI. |
+| `GET` | `/` | Serves the production React frontend build. |
 | `GET` | `/health` | Reports overall service status, version, and active agents. |
 | `GET` | `/health/db` | Executes `SELECT 1` to verify live PostgreSQL database connectivity. |
 
@@ -641,10 +658,21 @@ python -m app.db.create_test_user
 ```
 
 ### 6. Start Application
+Build the React frontend once so FastAPI can serve it from `/`:
+```bash
+cd frontend
+npm ci
+npm run build
+cd ..
+```
+
+For frontend development with hot reload, run `npm run dev` from `frontend/` in a separate terminal. Vite proxies `/api` requests to `http://localhost:8000`.
+
+Then start the backend:
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
-- **Web SPA UI**: Open `http://localhost:8000` in your browser.
+- **Web UI**: Open `http://localhost:8000` in your browser.
 - **Interactive OpenAPI Docs**: Navigate to `http://localhost:8000/docs`.
 
 ### 7. LangGraph Studio Setup (Optional)
